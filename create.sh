@@ -25,7 +25,9 @@ helm install longhorn longhorn/longhorn --namespace longhorn-system --create-nam
 --set csi.attacherReplicaCount=1 \
 --set csi.provisionerReplicaCount=1 \
 --set csi.resizerReplicaCount=1 \
---set csi.snapshotterReplicaCount=1
+--set csi.snapshotterReplicaCount=1 \
+--set defaultSettings.defaultReplicaCount=1 \
+--set persistence.defaultClassReplicaCount=1
 
 # Rook
 git clone https://github.com/rook/rook.git
@@ -65,10 +67,16 @@ kubectl create namespace argocd
 kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
 kubectl -n argocd create ingress argocd-server --class nginx --rule argocd/*=argocd-server:443
 
-# Tekton
+# Tekton Pipeline
 kubectl apply --filename https://storage.googleapis.com/tekton-releases/pipeline/latest/release.yaml
 kubectl apply --filename https://storage.googleapis.com/tekton-releases/dashboard/latest/tekton-dashboard-release.yaml
-kubectl -n tekton-pipelines create ingress tekton --rule=tekton/*=tekton-dashboard:9097 --class nginx
+kubectl -n tekton-pipelines create ingress tekton --rule=tekton/*=tekton-dashboard:9097 --class 
+
+# Tekton Trigger
+kubectl apply --filename \
+https://storage.googleapis.com/tekton-releases/triggers/latest/release.yaml
+kubectl apply --filename \
+https://storage.googleapis.com/tekton-releases/triggers/latest/interceptors.yaml
 
 # Loki
 helm repo add grafana https://grafana.github.io/helm-charts
@@ -76,10 +84,9 @@ helm repo update
 helm upgrade --install loki --namespace=loki grafana/loki-simple-scalable --create-namespace --values loki/values.yaml 
 
 # Grafana
-helm install loki-grafana grafana/grafana --namespace=loki
+helm install loki-grafana grafana/grafana --namespace=loki --create-namespace --set persistence.enabled=true
 kubectl get secret --namespace loki loki-grafana -o jsonpath="{.data.admin-password}" | base64 --decode ; echo
-kubectl port-forward --namespace loki service/loki-grafana 3000:80
-kubectl create -n loki ingress grafana --rule grafana/*=loki-grafana:3000 --class nginx
+kubectl create -n loki ingress grafana --rule grafana/*=loki-grafana:80 --class nginx
 
 # Promtail
 helm upgrade --install promtail grafana/promtail --namespace loki
